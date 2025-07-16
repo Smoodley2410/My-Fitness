@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fitness Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fitness Tracker</h1>
+
+  <form id="trackerForm">
+    <label>Date (dd/mm/yyyy):
+      <input type="text" name="date" placeholder="dd/mm/yyyy" required>
+    </label>
+    <label>Duration (minutes):
+      <input type="number" name="duration">
+    </label>
+    <label>Average Heart Rate:
+      <input type="number" name="avgHR">
+    </label>
+    <label>Max Heart Rate:
+      <input type="number" name="maxHR">
+    </label>
+    <label>Calories Burned:
+      <input type="number" name="calories">
+    </label>
+    <label>VO2 Max:
+      <input type="number" name="vo2">
+    </label>
+    <label>Recovery Heart Rate:
+      <input type="number" name="recoveryHR">
+    </label>
+    <label>Workout Type (auto-assigned):
+      <input type="text" name="workoutType" readonly>
+    </label>
+    <label>AI Assessment:
+      <textarea name="aiAssessment" rows="4" readonly></textarea>
+    </label>
+
+    <button type="button" id="sendToAI">Send to AI</button>
+    <button type="submit">Save Entry</button>
+  </form>
+
+  <button id="export">Export Entries</button>
+
+  <h2>Saved Entries</h2>
+  <ul id="entriesList"></ul>
+
+  <script>
+    const form = document.getElementById('trackerForm');
+    const entriesList = document.getElementById('entriesList');
+
+    function assignWorkoutType(entry) {
+      if (entry.vo2 > 45 || entry.avgHR > 140) {
+        return 'Cardio';
+      } else if (entry.calories > 500) {
+        return 'HIIT';
+      } else {
+        return 'Strength';
+      }
+    }
+
+    function loadEntries() {
+      const entries = JSON.parse(localStorage.getItem('fitnessEntries')) || [];
+      entriesList.innerHTML = '';
+      entries.forEach((entry) => {
+        const li = document.createElement('li');
+        li.textContent = `${entry.date} - ${entry.workoutType} - ${entry.duration} min`;
+        entriesList.appendChild(li);
+      });
+    }
+
+    document.getElementById('sendToAI').addEventListener('click', async () => {
+      const formData = new FormData(form);
+      const entry = {};
+      formData.forEach((value, key) => {
+        entry[key] = value;
+      });
+
+      try {
+        const response = await fetch('http://localhost:5000/api/ai-assessment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entry)
+        });
+
+        const data = await response.json();
+        console.log('AI Response:', data);
+        form.aiAssessment.value = data.assessment;
+      } catch (error) {
+        console.error('Fetch error:', error);
+        form.aiAssessment.value = 'Error contacting AI.';
+      }
+    });
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const newEntry = {};
+      formData.forEach((value, key) => {
+        newEntry[key] = value;
+      });
+
+      newEntry.workoutType = assignWorkoutType(newEntry);
+
+      const entries = JSON.parse(localStorage.getItem('fitnessEntries')) || [];
+      entries.push(newEntry);
+      localStorage.setItem('fitnessEntries', JSON.stringify(entries));
+
+      form.reset();
+      loadEntries();
+    });
+
+    document.getElementById('export').addEventListener('click', () => {
+      const entries = JSON.parse(localStorage.getItem('fitnessEntries')) || [];
+      const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fitness-entries.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    window.addEventListener('load', loadEntries);
+  </script>
+</body>
+</html>
